@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,9 @@ import org.junit.Test;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
+import org.springframework.mock.web.test.MockHttpServletRequest;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.*;
 import static org.mockito.BDDMockito.*;
 
@@ -135,17 +137,20 @@ public class VersionResourceResolverTests {
 		String version = "version";
 		String file = "bar.css";
 		Resource expected = new ClassPathResource("test/" + file, getClass());
-		given(this.chain.resolveResource(null, versionFile, this.locations)).willReturn(null);
-		given(this.chain.resolveResource(null, file, this.locations)).willReturn(expected);
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/resources/bar-version.css");
+		given(this.chain.resolveResource(request, versionFile, this.locations)).willReturn(null);
+		given(this.chain.resolveResource(request, file, this.locations)).willReturn(expected);
 		given(this.versionStrategy.extractVersion(versionFile)).willReturn(version);
 		given(this.versionStrategy.removeVersion(versionFile, version)).willReturn(file);
 		given(this.versionStrategy.getResourceVersion(expected)).willReturn(version);
 
 		this.resolver
 				.setStrategyMap(Collections.singletonMap("/**", this.versionStrategy));
-		Resource actual = this.resolver.resolveResourceInternal(null, versionFile, this.locations, this.chain);
-		assertEquals(expected, actual);
+		Resource actual = this.resolver.resolveResourceInternal(request, versionFile, this.locations, this.chain);
+		assertEquals(expected.getFilename(), actual.getFilename());
 		verify(this.versionStrategy, times(1)).getResourceVersion(expected);
+		assertThat(actual, instanceOf(VersionedResource.class));
+		assertEquals(version, ((VersionedResource)actual).getVersion());
 	}
 
 	@Test

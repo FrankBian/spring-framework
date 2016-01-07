@@ -13,26 +13,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.web.servlet.mvc.method.annotation;
 
 import java.io.IOException;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import static org.mockito.Mockito.*;
+
 import org.mockito.MockitoAnnotations;
 
 import org.springframework.http.MediaType;
+import org.springframework.util.Assert;
 
 import static org.junit.Assert.fail;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-
 
 /**
  * Unit tests for {@link ResponseBodyEmitter}.
+ *
  * @author Rossen Stoyanchev
+ * @author Tomasz Nurkiewicz
  */
 public class ResponseBodyEmitterTests {
 
@@ -64,6 +67,19 @@ public class ResponseBodyEmitterTests {
 	}
 
 	@Test
+	public void sendDuplicateBeforeHandlerInitialized() throws Exception {
+		this.emitter.send("foo", MediaType.TEXT_PLAIN);
+		this.emitter.send("foo", MediaType.TEXT_PLAIN);
+		this.emitter.complete();
+		verifyNoMoreInteractions(this.handler);
+
+		this.emitter.initialize(this.handler);
+		verify(this.handler, times(2)).send("foo", MediaType.TEXT_PLAIN);
+		verify(this.handler).complete();
+		verifyNoMoreInteractions(this.handler);
+	}
+
+	@Test
 	public void sendBeforeHandlerInitializedWithError() throws Exception {
 		IllegalStateException ex = new IllegalStateException();
 		this.emitter.send("foo", MediaType.TEXT_PLAIN);
@@ -87,6 +103,8 @@ public class ResponseBodyEmitterTests {
 	@Test
 	public void sendAfterHandlerInitialized() throws Exception {
 		this.emitter.initialize(this.handler);
+		verify(this.handler).onTimeout(any());
+		verify(this.handler).onCompletion(any());
 		verifyNoMoreInteractions(this.handler);
 
 		this.emitter.send("foo", MediaType.TEXT_PLAIN);
@@ -102,6 +120,8 @@ public class ResponseBodyEmitterTests {
 	@Test
 	public void sendAfterHandlerInitializedWithError() throws Exception {
 		this.emitter.initialize(this.handler);
+		verify(this.handler).onTimeout(any());
+		verify(this.handler).onCompletion(any());
 		verifyNoMoreInteractions(this.handler);
 
 		IllegalStateException ex = new IllegalStateException();
@@ -118,6 +138,8 @@ public class ResponseBodyEmitterTests {
 	@Test
 	public void sendWithError() throws Exception {
 		this.emitter.initialize(this.handler);
+		verify(this.handler).onTimeout(any());
+		verify(this.handler).onCompletion(any());
 		verifyNoMoreInteractions(this.handler);
 
 		IOException failure = new IOException();
@@ -132,6 +154,68 @@ public class ResponseBodyEmitterTests {
 		verify(this.handler).send("foo", MediaType.TEXT_PLAIN);
 		verify(this.handler).completeWithError(failure);
 		verifyNoMoreInteractions(this.handler);
+	}
+
+	@Test
+	public void onTimeoutBeforeHandlerInitialized() throws Exception  {
+		Runnable runnable = mock(Runnable.class);
+		this.emitter.onTimeout(runnable);
+		this.emitter.initialize(this.handler);
+
+		ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
+		verify(this.handler).onTimeout(captor.capture());
+		verify(this.handler).onCompletion(any());
+
+		Assert.notNull(captor.getValue());
+		captor.getValue().run();
+		verify(runnable).run();
+	}
+
+	@Test
+	public void onTimeoutAfterHandlerInitialized() throws Exception  {
+		this.emitter.initialize(this.handler);
+
+		ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
+		verify(this.handler).onTimeout(captor.capture());
+		verify(this.handler).onCompletion(any());
+
+		Runnable runnable = mock(Runnable.class);
+		this.emitter.onTimeout(runnable);
+
+		Assert.notNull(captor.getValue());
+		captor.getValue().run();
+		verify(runnable).run();
+	}
+
+	@Test
+	public void onCompletionBeforeHandlerInitialized() throws Exception  {
+		Runnable runnable = mock(Runnable.class);
+		this.emitter.onCompletion(runnable);
+		this.emitter.initialize(this.handler);
+
+		ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
+		verify(this.handler).onTimeout(any());
+		verify(this.handler).onCompletion(captor.capture());
+
+		Assert.notNull(captor.getValue());
+		captor.getValue().run();
+		verify(runnable).run();
+	}
+
+	@Test
+	public void onCompletionAfterHandlerInitialized() throws Exception  {
+		this.emitter.initialize(this.handler);
+
+		ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
+		verify(this.handler).onTimeout(any());
+		verify(this.handler).onCompletion(captor.capture());
+
+		Runnable runnable = mock(Runnable.class);
+		this.emitter.onCompletion(runnable);
+
+		Assert.notNull(captor.getValue());
+		captor.getValue().run();
+		verify(runnable).run();
 	}
 
 }

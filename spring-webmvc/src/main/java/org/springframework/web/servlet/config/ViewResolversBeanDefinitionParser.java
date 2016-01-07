@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-2015 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,8 +37,8 @@ import org.springframework.web.servlet.view.InternalResourceViewResolver;
 import org.springframework.web.servlet.view.ViewResolverComposite;
 import org.springframework.web.servlet.view.freemarker.FreeMarkerViewResolver;
 import org.springframework.web.servlet.view.groovy.GroovyMarkupViewResolver;
+import org.springframework.web.servlet.view.script.ScriptTemplateViewResolver;
 import org.springframework.web.servlet.view.tiles3.TilesViewResolver;
-import org.springframework.web.servlet.view.velocity.VelocityViewResolver;
 
 /**
  * Parse the {@code view-resolvers} MVC namespace element and register
@@ -60,19 +60,22 @@ import org.springframework.web.servlet.view.velocity.VelocityViewResolver;
  * @see TilesConfigurerBeanDefinitionParser
  * @see FreeMarkerConfigurerBeanDefinitionParser
  * @see VelocityConfigurerBeanDefinitionParser
+ * @see GroovyMarkupConfigurerBeanDefinitionParser
+ * @see ScriptTemplateConfigurerBeanDefinitionParser
  */
 public class ViewResolversBeanDefinitionParser implements BeanDefinitionParser {
 
 	public static final String VIEW_RESOLVER_BEAN_NAME = "mvcViewResolver";
 
 
+	@SuppressWarnings("deprecation")
 	public BeanDefinition parse(Element element, ParserContext context) {
 		Object source = context.extractSource(element);
 		context.pushContainingComponent(new CompositeComponentDefinition(element.getTagName(), source));
 
 		ManagedList<Object> resolvers = new ManagedList<Object>(4);
 		resolvers.setSource(context.extractSource(element));
-		String[] names = new String[] {"jsp", "tiles", "bean-name", "freemarker", "velocity", "groovy", "bean", "ref"};
+		String[] names = new String[] {"jsp", "tiles", "bean-name", "freemarker", "velocity", "groovy", "script-template", "bean", "ref"};
 
 		for (Element resolverElement : DomUtils.getChildElementsByTagName(element, names)) {
 			String name = resolverElement.getLocalName();
@@ -97,13 +100,17 @@ public class ViewResolversBeanDefinitionParser implements BeanDefinitionParser {
 				addUrlBasedViewResolverProperties(resolverElement, resolverBeanDef);
 			}
 			else if ("velocity".equals(name)) {
-				resolverBeanDef = new RootBeanDefinition(VelocityViewResolver.class);
+				resolverBeanDef = new RootBeanDefinition(org.springframework.web.servlet.view.velocity.VelocityViewResolver.class);
 				resolverBeanDef.getPropertyValues().add("suffix", ".vm");
 				addUrlBasedViewResolverProperties(resolverElement, resolverBeanDef);
 			}
 			else if ("groovy".equals(name)) {
 				resolverBeanDef = new RootBeanDefinition(GroovyMarkupViewResolver.class);
 				resolverBeanDef.getPropertyValues().add("suffix", ".tpl");
+				addUrlBasedViewResolverProperties(resolverElement, resolverBeanDef);
+			}
+			else if ("script-template".equals(name)) {
+				resolverBeanDef = new RootBeanDefinition(ScriptTemplateViewResolver.class);
 				addUrlBasedViewResolverProperties(resolverElement, resolverBeanDef);
 			}
 			else if ("bean-name".equals(name)) {
@@ -185,11 +192,24 @@ public class ViewResolversBeanDefinitionParser implements BeanDefinitionParser {
 		if (resolverElement.hasAttribute("use-not-acceptable")) {
 			values.add("useNotAcceptableStatusCode", resolverElement.getAttribute("use-not-acceptable"));
 		}
-		String beanName = AnnotationDrivenBeanDefinitionParser.CONTENT_NEGOTIATION_MANAGER_BEAN_NAME;
-		if (context.getRegistry().containsBeanDefinition(beanName)) {
-			values.add("contentNegotiationManager", new RuntimeBeanReference(beanName));
+		Object manager = getContentNegotiationManager(context);
+		if (manager != null) {
+			values.add("contentNegotiationManager", manager);
 		}
 		return beanDef;
+	}
+
+	private Object getContentNegotiationManager(ParserContext context) {
+		String name = AnnotationDrivenBeanDefinitionParser.HANDLER_MAPPING_BEAN_NAME;
+		if (context.getRegistry().containsBeanDefinition(name)) {
+			BeanDefinition handlerMappingBeanDef = context.getRegistry().getBeanDefinition(name);
+			return handlerMappingBeanDef.getPropertyValues().get("contentNegotiationManager");
+		}
+		name = AnnotationDrivenBeanDefinitionParser.CONTENT_NEGOTIATION_MANAGER_BEAN_NAME;
+		if (context.getRegistry().containsBeanDefinition(name)) {
+			return new RuntimeBeanReference(name);
+		}
+		return null;
 	}
 
 }

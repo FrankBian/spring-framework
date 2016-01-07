@@ -20,8 +20,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import reactor.core.composable.Promise;
-import reactor.function.Consumer;
+import reactor.fn.Consumer;
+import reactor.rx.Promise;
 
 import org.springframework.util.Assert;
 import org.springframework.util.concurrent.FailureCallback;
@@ -56,21 +56,20 @@ abstract class AbstractPromiseToListenableFutureAdapter<S, T> implements Listena
 				try {
 					registry.success(adapt(result));
 				}
-				catch (Throwable t) {
-					registry.failure(t);
+				catch (Throwable ex) {
+					registry.failure(ex);
 				}
 			}
 		});
 
 		this.promise.onError(new Consumer<Throwable>() {
 			@Override
-			public void accept(Throwable t) {
-				registry.failure(t);
+			public void accept(Throwable ex) {
+				registry.failure(ex);
 			}
 		});
 	}
 
-	protected abstract T adapt(S result);
 
 	@Override
 	public T get() throws InterruptedException {
@@ -81,7 +80,7 @@ abstract class AbstractPromiseToListenableFutureAdapter<S, T> implements Listena
 	@Override
 	public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
 		S result = this.promise.await(timeout, unit);
-		if (result == null) {
+		if (!this.promise.isComplete()) {
 			throw new TimeoutException();
 		}
 		return adapt(result);
@@ -112,5 +111,8 @@ abstract class AbstractPromiseToListenableFutureAdapter<S, T> implements Listena
 		this.registry.addSuccessCallback(successCallback);
 		this.registry.addFailureCallback(failureCallback);
 	}
+
+
+	protected abstract T adapt(S result);
 
 }
