@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,40 +21,68 @@ package org.springframework.cache.interceptor;
  *
  * @author Costin Leau
  * @author Phillip Webb
+ * @author Marcin Kamionowski
  * @since 3.1
  */
 public class CacheableOperation extends CacheOperation {
 
-	private String unless;
+	private final String unless;
 
-	private boolean sync;
+	private final boolean sync;
+
+
+	/**
+	 * @since 4.3
+	 */
+	public CacheableOperation(CacheableOperation.Builder b) {
+		super(b);
+		this.unless = b.unless;
+		this.sync = b.sync;
+	}
 
 
 	public String getUnless() {
-		return unless;
-	}
-
-	public void setUnless(String unless) {
-		this.unless = unless;
+		return this.unless;
 	}
 
 	public boolean isSync() {
-		return sync;
+		return this.sync;
 	}
 
-	public void setSync(boolean sync) {
-		this.sync = sync;
+
+	/**
+	 * @since 4.3
+	 */
+	public static class Builder extends CacheOperation.Builder {
+
+		private String unless;
+
+		private boolean sync;
+
+		public void setUnless(String unless) {
+			this.unless = unless;
+		}
+
+		public void setSync(boolean sync) {
+			this.sync = sync;
+		}
+
+		@Override
+		protected StringBuilder getOperationDescription() {
+			StringBuilder sb = super.getOperationDescription();
+			sb.append(" | unless='");
+			sb.append(this.unless);
+			sb.append("'");
+			sb.append(" | sync='");
+			sb.append(this.sync);
+			sb.append("'");
+			return sb;
+		}
+
+		@Override
+		public CacheableOperation build() {
+			return new CacheableOperation(this);
+		}
 	}
 
-	@Override
-	protected StringBuilder getOperationDescription() {
-		StringBuilder sb = super.getOperationDescription();
-		sb.append(" | unless='");
-		sb.append(this.unless);
-		sb.append("'");
-		sb.append(" | sync='");
-		sb.append(this.sync);
-		sb.append("'");
-		return sb;
-	}
 }

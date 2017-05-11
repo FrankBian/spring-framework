@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,18 +33,14 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.BeanUtils;
 import org.springframework.http.HttpStatus;
-import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.WebApplicationContext;
-import org.springframework.web.servlet.FlashMap;
-import org.springframework.web.servlet.FlashMapManager;
 import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.servlet.SmartView;
 import org.springframework.web.servlet.View;
 import org.springframework.web.servlet.support.RequestContextUtils;
 import org.springframework.web.servlet.support.RequestDataValueProcessor;
-import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 import org.springframework.web.util.WebUtils;
@@ -103,6 +99,8 @@ public class RedirectView extends AbstractUrlBasedView implements SmartView {
 	private boolean expandUriTemplateVariables = true;
 
 	private boolean propagateQueryParams = false;
+
+	private String[] hosts;
 
 
 	/**
@@ -253,6 +251,28 @@ public class RedirectView extends AbstractUrlBasedView implements SmartView {
 	}
 
 	/**
+	 * Configure one or more hosts associated with the application.
+	 * All other hosts will be considered external hosts.
+	 * <p>In effect, this property provides a way turn off encoding via
+	 * {@link HttpServletResponse#encodeRedirectURL} for URLs that have a
+	 * host and that host is not listed as a known host.
+	 * <p>If not set (the default) all URLs are encoded through the response.
+	 * @param hosts one or more application hosts
+	 * @since 4.3
+	 */
+	public void setHosts(String... hosts) {
+		this.hosts = hosts;
+	}
+
+	/**
+	 * Return the configured application hosts.
+	 * @since 4.3
+	 */
+	public String[] getHosts() {
+		return this.hosts;
+	}
+
+	/**
 	 * Returns "true" indicating this view performs a redirect.
 	 */
 	@Override
@@ -281,18 +301,10 @@ public class RedirectView extends AbstractUrlBasedView implements SmartView {
 		String targetUrl = createTargetUrl(model, request);
 		targetUrl = updateTargetUrl(targetUrl, model, request, response);
 
-		FlashMap flashMap = RequestContextUtils.getOutputFlashMap(request);
-		if (!CollectionUtils.isEmpty(flashMap)) {
-			UriComponents uriComponents = UriComponentsBuilder.fromUriString(targetUrl).build();
-			flashMap.setTargetRequestPath(uriComponents.getPath());
-			flashMap.addTargetRequestParams(uriComponents.getQueryParams());
-			FlashMapManager flashMapManager = RequestContextUtils.getFlashMapManager(request);
-			if (flashMapManager == null) {
-				throw new IllegalStateException("FlashMapManager not found despite output FlashMap having been set");
-			}
-			flashMapManager.saveOutputFlashMap(flashMap, request, response);
-		}
+		// Save flash attributes
+		RequestContextUtils.saveOutputFlashMap(targetUrl, request, response);
 
+		// Redirect
 		sendRedirect(request, response, targetUrl, this.http10Compatible);
 	}
 
@@ -469,7 +481,7 @@ public class RedirectView extends AbstractUrlBasedView implements SmartView {
 	 * @see #isEligibleProperty(String, Object)
 	 */
 	protected Map<String, Object> queryProperties(Map<String, Object> model) {
-		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		Map<String, Object> result = new LinkedHashMap<>();
 		for (Map.Entry<String, Object> entry : model.entrySet()) {
 			if (isEligibleProperty(entry.getKey(), entry.getValue())) {
 				result.put(entry.getKey(), entry.getValue());
@@ -583,27 +595,53 @@ public class RedirectView extends AbstractUrlBasedView implements SmartView {
 	protected void sendRedirect(HttpServletRequest request, HttpServletResponse response,
 			String targetUrl, boolean http10Compatible) throws IOException {
 
-		String encodedRedirectURL = response.encodeRedirectURL(targetUrl);
+		String encodedURL = (isRemoteHost(targetUrl) ? targetUrl : response.encodeRedirectURL(targetUrl));
 		if (http10Compatible) {
 			HttpStatus attributeStatusCode = (HttpStatus) request.getAttribute(View.RESPONSE_STATUS_ATTRIBUTE);
 			if (this.statusCode != null) {
 				response.setStatus(this.statusCode.value());
-				response.setHeader("Location", encodedRedirectURL);
+				response.setHeader("Location", encodedURL);
 			}
 			else if (attributeStatusCode != null) {
 				response.setStatus(attributeStatusCode.value());
-				response.setHeader("Location", encodedRedirectURL);
+				response.setHeader("Location", encodedURL);
 			}
 			else {
 				// Send status code 302 by default.
-				response.sendRedirect(encodedRedirectURL);
+				response.sendRedirect(encodedURL);
 			}
 		}
 		else {
 			HttpStatus statusCode = getHttp11StatusCode(request, response, targetUrl);
 			response.setStatus(statusCode.value());
-			response.setHeader("Location", encodedRedirectURL);
+			response.setHeader("Location", encodedURL);
 		}
+	}
+
+	/**
+	 * Whether the given targetUrl has a host that is a "foreign" system in which
+	 * case {@link HttpServletResponse#encodeRedirectURL} will not be applied.
+	 * This method returns {@code true} if the {@link #setHosts(String[])}
+	 * property is configured and the target URL has a host that does not match.
+	 * @param targetUrl the target redirect URL
+	 * @return {@code true} the target URL has a remote host, {@code false} if it
+	 * the URL does not have a host or the "host" property is not configured.
+	 * @since 4.3
+	 */
+	protected boolean isRemoteHost(String targetUrl) {
+		if (ObjectUtils.isEmpty(getHosts())) {
+			return false;
+		}
+		String targetHost = UriComponentsBuilder.fromUriString(targetUrl).build().getHost();
+		if (StringUtils.isEmpty(targetHost)) {
+			return false;
+		}
+		for (String host : getHosts()) {
+			if (targetHost.equals(host)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,9 +74,9 @@ public abstract class NamedParameterUtils {
 	public static ParsedSql parseSqlStatement(final String sql) {
 		Assert.notNull(sql, "SQL must not be null");
 
-		Set<String> namedParameters = new HashSet<String>();
+		Set<String> namedParameters = new HashSet<>();
 		String sqlToUse = sql;
-		List<ParameterHolder> parameterList = new ArrayList<ParameterHolder>();
+		List<ParameterHolder> parameterList = new ArrayList<>();
 
 		char[] statement = sql.toCharArray();
 		int namedParameterCount = 0;
@@ -153,8 +153,8 @@ public abstract class NamedParameterUtils {
 				}
 				if (c == '?') {
 					int j = i + 1;
-					if (j < statement.length && statement[j] == '?') {
-						// Postgres-style "??" operator should be skipped
+					if (j < statement.length && (statement[j] == '?' || statement[j] == '|' || statement[j] == '&')) {
+						// Postgres-style "??", "?|", "?&" operator should be skipped
 						i = i + 2;
 						continue;
 					}
@@ -416,7 +416,7 @@ public abstract class NamedParameterUtils {
 	 */
 	public static List<SqlParameter> buildSqlParameterList(ParsedSql parsedSql, SqlParameterSource paramSource) {
 		List<String> paramNames = parsedSql.getParameterNames();
-		List<SqlParameter> params = new LinkedList<SqlParameter>();
+		List<SqlParameter> params = new LinkedList<>();
 		for (String paramName : paramNames) {
 			params.add(new SqlParameter(paramName, paramSource.getSqlType(paramName), paramSource.getTypeName(paramName)));
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,11 +46,17 @@ public class LazySingletonAspectInstanceFactoryDecorator implements MetadataAwar
 
 
 	@Override
-	public synchronized Object getAspectInstance() {
+	public Object getAspectInstance() {
 		if (this.materialized == null) {
-			synchronized (this) {
-				if (this.materialized == null) {
-					this.materialized = this.maaif.getAspectInstance();
+			Object mutex = this.maaif.getAspectCreationMutex();
+			if (mutex == null) {
+				this.materialized = this.maaif.getAspectInstance();
+			}
+			else {
+				synchronized (mutex) {
+					if (this.materialized == null) {
+						this.materialized = this.maaif.getAspectInstance();
+					}
 				}
 			}
 		}
@@ -69,6 +75,11 @@ public class LazySingletonAspectInstanceFactoryDecorator implements MetadataAwar
 	@Override
 	public AspectMetadata getAspectMetadata() {
 		return this.maaif.getAspectMetadata();
+	}
+
+	@Override
+	public Object getAspectCreationMutex() {
+		return this.maaif.getAspectCreationMutex();
 	}
 
 	@Override
