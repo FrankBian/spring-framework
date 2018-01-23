@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
 import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.logging.Log;
@@ -32,8 +31,10 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
+import org.springframework.lang.Nullable;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.PathMatcher;
+import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.handler.SimpleUrlHandlerMapping;
 import org.springframework.web.util.UrlPathHelper;
 
@@ -99,7 +100,7 @@ public class ResourceUrlProvider implements ApplicationListener<ContextRefreshed
 	 * from the Spring {@code ApplicationContext}. However if this property is
 	 * used, the auto-detection is turned off.
 	 */
-	public void setHandlerMap(Map<String, ResourceHttpRequestHandler> handlerMap) {
+	public void setHandlerMap(@Nullable Map<String, ResourceHttpRequestHandler> handlerMap) {
 		if (handlerMap != null) {
 			this.handlerMap.clear();
 			this.handlerMap.putAll(handlerMap);
@@ -141,13 +142,13 @@ public class ResourceUrlProvider implements ApplicationListener<ContextRefreshed
 	protected void detectResourceHandlers(ApplicationContext appContext) {
 		logger.debug("Looking for resource handler mappings");
 
-		Map<String, SimpleUrlHandlerMapping> map = appContext.getBeansOfType(SimpleUrlHandlerMapping.class);
-		List<SimpleUrlHandlerMapping> handlerMappings = new ArrayList<>(map.values());
-		AnnotationAwareOrderComparator.sort(handlerMappings);
+		Map<String, SimpleUrlHandlerMapping> beans = appContext.getBeansOfType(SimpleUrlHandlerMapping.class);
+		List<SimpleUrlHandlerMapping> mappings = new ArrayList<>(beans.values());
+		AnnotationAwareOrderComparator.sort(mappings);
 
-		for (SimpleUrlHandlerMapping hm : handlerMappings) {
-			for (String pattern : hm.getHandlerMap().keySet()) {
-				Object handler = hm.getHandlerMap().get(pattern);
+		for (SimpleUrlHandlerMapping mapping : mappings) {
+			for (String pattern : mapping.getHandlerMap().keySet()) {
+				Object handler = mapping.getHandlerMap().get(pattern);
 				if (handler instanceof ResourceHttpRequestHandler) {
 					ResourceHttpRequestHandler resourceHandler = (ResourceHttpRequestHandler) handler;
 					if (logger.isDebugEnabled()) {
@@ -169,6 +170,7 @@ public class ResourceUrlProvider implements ApplicationListener<ContextRefreshed
 	 * @param requestUrl the request URL path to resolve
 	 * @return the resolved public URL path, or {@code null} if unresolved
 	 */
+	@Nullable
 	public final String getForRequestUrl(HttpServletRequest request, String requestUrl) {
 		if (logger.isTraceEnabled()) {
 			logger.trace("Getting resource URL for request URL \"" + requestUrl + "\"");
@@ -214,7 +216,16 @@ public class ResourceUrlProvider implements ApplicationListener<ContextRefreshed
 	 * @param lookupPath the lookup path to check
 	 * @return the resolved public URL path, or {@code null} if unresolved
 	 */
+	@Nullable
 	public final String getForLookupPath(String lookupPath) {
+
+		// Clean duplicate slashes or pathWithinPattern won't match lookupPath
+		String previous;
+		do {
+			previous = lookupPath;
+			lookupPath = StringUtils.replace(lookupPath, "//", "/");
+		} while (!lookupPath.equals(previous));
+
 		if (logger.isTraceEnabled()) {
 			logger.trace("Getting resource URL for lookup path \"" + lookupPath + "\"");
 		}

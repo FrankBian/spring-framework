@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import reactor.core.publisher.Mono;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -102,10 +103,7 @@ public class MultipartIntegrationTests extends AbstractHttpHandlerIntegrationTes
 			assertEquals("fooPart", part.name());
 			assertTrue(part instanceof FilePart);
 			assertEquals("foo.txt", ((FilePart) part).filename());
-			DataBuffer buffer = part
-					.content()
-					.reduce(DataBuffer::write)
-					.block();
+			DataBuffer buffer = DataBufferUtils.join(part.content()).block();
 			assertEquals(12, buffer.readableByteCount());
 			byte[] byteContent = new byte[12];
 			buffer.read(byteContent);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.springframework.web.socket.sockjs.support;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,6 +40,7 @@ import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
@@ -328,7 +330,7 @@ public abstract class AbstractSockJsService implements SockJsService, CorsConfig
 	 */
 	@Override
 	public final void handleRequest(ServerHttpRequest request, ServerHttpResponse response,
-			String sockJsPath, WebSocketHandler wsHandler) throws SockJsException {
+			@Nullable String sockJsPath, WebSocketHandler wsHandler) throws SockJsException {
 
 		if (sockJsPath == null) {
 			if (logger.isWarnEnabled()) {
@@ -487,10 +489,11 @@ public abstract class AbstractSockJsService implements SockJsService, CorsConfig
 	}
 
 	@Override
+	@Nullable
 	public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
 		if (!this.suppressCors && CorsUtils.isCorsRequest(request)) {
 			CorsConfiguration config = new CorsConfiguration();
-			config.addAllowedOrigin("*");
+			config.setAllowedOrigins(new ArrayList<>(this.allowedOrigins));
 			config.addAllowedMethod("*");
 			config.setAllowCredentials(true);
 			config.setMaxAge(ONE_YEAR);

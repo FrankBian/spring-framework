@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ import org.springframework.util.MultiValueMap;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
+import static org.mockito.BDDMockito.any;
 import static org.mockito.BDDMockito.*;
 
 /**
@@ -63,6 +64,7 @@ import static org.mockito.BDDMockito.*;
  *
  * @author Phillip Webb
  * @author Juergen Hoeller
+ * @author Sebastien Deleuze
  */
 @SuppressWarnings("rawtypes")
 @RunWith(MockitoJUnitRunner.class)
@@ -86,7 +88,7 @@ public class ResolvableTypeTests {
 		assertThat(none.getGenerics().length, equalTo(0));
 		assertThat(none.getInterfaces().length, equalTo(0));
 		assertThat(none.getSuperType(), equalTo(ResolvableType.NONE));
-		assertThat(none.getType(), nullValue());
+		assertThat(none.getType(), equalTo(ResolvableType.EmptyType.INSTANCE));
 		assertThat(none.hasGenerics(), equalTo(false));
 		assertThat(none.isArray(), equalTo(false));
 		assertThat(none.resolve(), nullValue());
@@ -175,11 +177,13 @@ public class ResolvableTypeTests {
 		ResolvableType type = ResolvableType.forField(field);
 		assertThat(type.getType(), equalTo(field.getGenericType()));
 		assertThat(type.resolve(), equalTo((Class) List.class));
+		assertThat(type.getSource(), sameInstance(field));
 
 		Field field2 = Fields.class.getDeclaredField("otherPrivateField");
 		ResolvableType type2 = ResolvableType.forField(field2);
 		assertThat(type2.getType(), equalTo(field2.getGenericType()));
 		assertThat(type2.resolve(), equalTo((Class) List.class));
+		assertThat(type2.getSource(), sameInstance(field2));
 
 		assertEquals(type, type2);
 		assertEquals(type.hashCode(), type2.hashCode());
@@ -256,6 +260,19 @@ public class ResolvableTypeTests {
 		this.thrown.expect(IllegalArgumentException.class);
 		this.thrown.expectMessage("MethodParameter must not be null");
 		ResolvableType.forMethodParameter(null);
+	}
+
+	@Test  // SPR-16210
+	public void forMethodParameterWithSameSignatureAndGenerics() throws Exception {
+		Method method = Methods.class.getMethod("list1");
+		MethodParameter methodParameter = MethodParameter.forExecutable(method, -1);
+		ResolvableType type = ResolvableType.forMethodParameter(methodParameter);
+		assertThat(((MethodParameter)type.getSource()).getMethod(), equalTo(method));
+
+		method = Methods.class.getMethod("list2");
+		methodParameter = MethodParameter.forExecutable(method, -1);
+		type = ResolvableType.forMethodParameter(methodParameter);
+		assertThat(((MethodParameter)type.getSource()).getMethod(), equalTo(method));
 	}
 
 	@Test
@@ -870,6 +887,22 @@ public class ResolvableTypeTests {
 	}
 
 	@Test
+	public void resolveTypeVariableFromReflectiveParameterizedTypeReference() throws Exception {
+		Type sourceType = Methods.class.getMethod("typedReturn").getGenericReturnType();
+		ResolvableType type = ResolvableType.forType(ParameterizedTypeReference.forType(sourceType));
+		assertThat(type.resolve(), nullValue());
+		assertThat(type.getType().toString(), equalTo("T"));
+	}
+
+	@Test
+	public void resolveTypeVariableFromDeclaredParameterizedTypeReference() throws Exception {
+		Type sourceType = Methods.class.getMethod("charSequenceReturn").getGenericReturnType();
+		ResolvableType reflectiveType = ResolvableType.forType(sourceType);
+		ResolvableType declaredType = ResolvableType.forType(new ParameterizedTypeReference<List<CharSequence>>() {});
+		assertEquals(reflectiveType, declaredType);
+	}
+
+	@Test
 	public void toStrings() throws Exception {
 		assertThat(ResolvableType.NONE.toString(), equalTo("?"));
 
@@ -1420,6 +1453,10 @@ public class ResolvableTypeTests {
 		T typedReturn();
 
 		Set<?> wildcardSet();
+
+		List<String> list1();
+
+		List<String> list2();
 	}
 
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,35 +34,30 @@ import org.springframework.core.codec.Encoder;
  */
 public interface ServerCodecConfigurer extends CodecConfigurer {
 
-	/**
-	 * {@inheritDoc}
-	 * <p>Overriden to return {@link ServerDefaultCodecsConfigurer}.
-	 */
 	@Override
-	ServerDefaultCodecsConfigurer defaultCodecs();
+	ServerDefaultCodecs defaultCodecs();
 
 
 	/**
-	 * Creates a new instance of the {@code ServerCodecConfigurer}.
-	 * @return the created instance
+	 * Create a new instance of the {@code ServerCodecConfigurer}.
 	 */
 	static ServerCodecConfigurer create() {
-		return new DefaultServerCodecConfigurer();
+		return CodecConfigurerFactory.create(ServerCodecConfigurer.class);
 	}
 
 
 	/**
-	 * Extension of {@link DefaultCodecConfigurer} with extra server options.
+	 * Extension of {@link CodecConfigurer.DefaultCodecs} with extra server options.
 	 */
-	interface ServerDefaultCodecsConfigurer extends DefaultCodecsConfigurer {
+	interface ServerDefaultCodecs extends DefaultCodecs {
 
 		/**
 		 * Configure the {@code Encoder} to use for Server-Sent Events.
-		 * <p>By default the {@link #jackson2Encoder} override is used for SSE.
-		 * @param encoder the encoder to use
+		 * <p>By default if this is not set, and Jackson is available, the
+		 * {@link #jackson2JsonEncoder} override is used instead. Use this property
+		 * if you want to further customize the SSE encoder.
 		 */
 		void serverSentEventEncoder(Encoder<?> encoder);
-
 	}
 
 }
